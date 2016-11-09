@@ -1,25 +1,108 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research-Week 2 Project"
+author: "Yvonne"
+date: "November 7, 2016"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 
-## Loading and preprocessing the data
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(lattice) 
+```
 
+The following codes will:
 
+A)  Loading and preprocessing the data
+    1)  It reads the activity.csv file into workspace
+    2)  Remove cases with NA
+    
+```{r activity}
+activity <- read.csv("activity.csv")        # read csv file
+noNAData <- activity[complete.cases(activity), ]  #drop na 
+```
 
-## What is mean total number of steps taken per day?
+B) What is mean total number of steps taken per day?
+    1) compute the total steps made per day
+    2) plot a histogram and boxplot for the total number of steps taken each day
+    3) Calculate and report the mean and median of the total number of steps taken per day
 
+```{r total_steps_perday}
 
+#compute total of steps: 570608
+sum(activity$steps,na.rm=TRUE)        
 
-## What is the average daily activity pattern?
+# draw boxplot
+qplot(date, steps, data = activity, geom = "boxplot")+xlab("Day") + ylab("Steps")+ggtitle("Histogram of Total Number of Steps Per Day")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+# draw histogram
+ggplot(activity, aes(as.factor(date),steps))+geom_bar(fill="purple", stat="identity")+xlab("Day") + ylab("Steps")+ggtitle("Histogram of Total Number of Steps Per Day")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+# mean no of steps each day: 10766
+as.integer(mean(aggregate(steps~date,activity, FUN=sum)$steps))
 
-## Imputing missing values
+# mean no of steps each day: 10765
+as.integer(median(aggregate(steps~date,activity, FUN=sum)$steps))
 
+```
 
+C) What is the average daily activity pattern?
+```{r daily_activity}
+Q2 <- aggregate(steps~interval, noNAData, FUN=mean)
+plot(Q2$steps ~ Q2$interval, type="l", xlab="Interval", ylab="Average Steps per Day (5-mins interval")
+title(main = "Average Steps Per 5-min Interval")
+# Q2[Q2$steps==max(Q2$steps),]  or use which.max function
+Q2[which.max(Q2$steps),]  # interval when steps is max: 835
 
-## Are there differences in activity patterns between weekdays and weekends?
+```
+
+D) Imputing missing values
+
+```{r missing_value}
+#1. the total number of rows with NAs
+sum(is.na(activity))  #2304
+#2. fil in the missing values with mean for that day
+#3. Create a new dataset that equal to  original dataset but with missing data filled
+fillNA <- activity  #new dataset
+meanInt<- tapply(fillNA$steps, fillNA$interval, mean, na.rm=TRUE, simplify = TRUE)
+nas<- is.na(fillNA$steps)#get position of steps = na
+fillNA$steps[nas] <- meanInt[as.character(fillNA$interval[nas])]
+
+#4. Draw histogram using dataset without NA records
+ggplot(fillNA, aes(as.factor(date),steps))+geom_bar(fill="purple", stat="identity")+xlab("Day") + ylab("Steps")+ggtitle("Histogram of Total Number of Steps Per Day (filled NA)")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# mean of steps taken per day: 10766
+as.integer(mean(aggregate(steps~date, fillNA, FUN=sum)$steps))
+
+# median of steps taken per day: 10766
+as.integer(median(aggregate(steps~date, fillNA, FUN=sum)$steps))
+
+# The new mean of the imputed data is 10766 steps compared to the old mean of 10766 steps. There is no difference on average per day.
+# Same explanation for mean
+
+```
+
+E) Are there differences in activity patterns between weekdays and weekends?
+
+``` {r weekdays_weekends}
+#1. Create a new factor variable in the dataset with two levels - "weekday" and "weekend" 
+fillNA<- fillNA%>%
+        mutate(weektype= ifelse(weekdays(as.Date(fillNA$date))=="Saturday" | weekdays(as.Date(fillNA$date))=="Sunday", "Weekend", "Weekday"))
+
+head(fillNA)
+
+#2. Make a panel plot containing a time series plot 
+## Summarize data by interval and type of day
+dayInt <- ddply(fillNA, .(interval, weektype), summarize, Avg = mean(steps))
+head(dayInt)
+
+xyplot(Avg~interval|weektype, data=dayInt, type="l",  layout = c(1,2),
+       main="Average Steps per Interval Based on Type of Day", 
+       ylab="Average Number of Steps", xlab="Interval")
+
+# Answer: there differences in activity patterns between weekdays and weekends.  Weekday # has higher spike in the earlier part of the day. But Weekday has more even spike over
+# the day.
+```
